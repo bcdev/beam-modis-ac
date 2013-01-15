@@ -1,0 +1,76 @@
+<module>
+    <manifestVersion>1.0.0</manifestVersion>
+    <symbolicName>beam-modis-ac</symbolicName>
+    <version>1.0</version>
+    <name>MODIS Atmospheric Correction</name>
+
+    <description>
+        <![CDATA[
+            <p>The MODIS Atmospheric Correction Processor allows for the correction of the influence of the atmosphere
+             on radiance spectra measured with MODIS.</p>
+
+            <p>Algorithms: R. Doerffer from GKSS Research Centre, C. Brockmann from Brockmann Consult</p>
+            <p>Software: O.Danne of Brockmann Consult</p>
+
+            <p>Documentation:</p>
+
+            <ul>
+                <li><a href="http://github.com/downloads/bcdev/beam-modis-ac/modis-ac_sum.pdf">Software User Manual (SUM)</a></li>
+            </ul>
+    ]]>
+    </description>
+
+    <vendor>Brockmann Consult GmbH</vendor>
+    <contactAddress>Max Planck Str.2, 21502 Geesthacht (Germany)</contactAddress>
+    <copyright>(C) 2007 by Brockmann Consult GmbH</copyright>
+    <url>http://envisat.esa.int/beam</url>
+    <licenseUrl>http://www.gnu.org/licenses/gpl.html</licenseUrl>
+
+    <changelog>
+        <![CDATA[
+        <p>Changes in version 1.0<br/>
+        - Initial version
+        </p>
+        ]]>
+    </changelog>
+
+    <dependency>
+        <module>beam-gpf</module>
+    </dependency>
+    <dependency>
+        <module>beam-netcdf</module>
+    </dependency>
+    <dependency>
+        <module>beam-modis-reader</module>
+    </dependency>
+    <dependency>
+        <module>beam-visat-rcp</module>
+        <optional>true</optional>
+    </dependency>
+    <dependency>
+        <module>beam-waterradiance-auxdata</module>
+    </dependency>
+
+    <categories>Processor,MERIS</categories>
+
+    <extension point="beam-ui:actions">
+        <action>
+            <id>correctAtmosphereModis</id>
+            <class>org.esa.beam.atmosphere.ui.ModisAtmosphericCorrectionAction</class>
+            <text>Atmospheric Correction (MODIS)...</text>
+            <shortDescr>Performs an atmospheric correction on the selected product</shortDescr>
+            <longDescr>Performs an atmospheric correction on the selected product</longDescr>
+            <mnemonic/>
+            <parent>tools</parent>
+            <helpId>modisAtmosCorr</helpId>
+        </action>
+    </extension>
+
+    <extension point="beam-ui:helpSets">
+        <helpSet>
+            <parent>beam-help</parent>
+            <path>doc/help/modis-ac.hs</path>
+        </helpSet>
+    </extension>
+
+</module>
