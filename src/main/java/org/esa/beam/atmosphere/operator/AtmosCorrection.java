@@ -11,6 +11,11 @@ public class AtmosCorrection {
 
     private NNffbpAlphaTabFast atmosphereNet;
 
+    static final int INVALID = 0x01;  // LAND || CLOUD_ICE
+    static final int LAND = 0x02;
+    static final int CLOUD_ICE = 0x04;
+    static final int TOA_OOR = 0x08;
+
     /**
      * @param atmosphereNet the neural net for atmospheric correction
      */
@@ -28,6 +33,27 @@ public class AtmosCorrection {
      */
     public AtmosCorrectionResult perform(PixelData pixel, double temperature, double salinity) {
 
+        final AtmosCorrectionResult acResult = new AtmosCorrectionResult();
+
+        if (isLand(pixel)) {
+            acResult.raiseFlag(LAND);
+        }
+
+        if (isCloudIce(pixel)) {
+            acResult.raiseFlag(CLOUD_ICE);
+        }
+
+        if (isToaOor(pixel)) {
+            acResult.raiseFlag(TOA_OOR);
+        }
+
+        if ((acResult.getFlag() & LAND) == LAND ||
+            (acResult.getFlag() & CLOUD_ICE) == CLOUD_ICE ||
+            (acResult.getFlag() & TOA_OOR) == TOA_OOR) {
+            acResult.raiseFlag(INVALID);
+            return acResult;
+        }
+
         double tetaViewSurfDeg = pixel.satzen; /* viewing zenith angle */
         tetaViewSurfDeg = correctViewAngle(tetaViewSurfDeg, pixel.pixelX, pixel.nadirColumnIndex);
         final double tetaViewSurfRad = Math.toRadians(tetaViewSurfDeg);
@@ -37,8 +63,6 @@ public class AtmosCorrection {
         final double aziDiffSurfRad = Math.toRadians(aziDiffSurfDeg);
 
         double[] xyz = computeXYZCoordinates(tetaViewSurfRad, aziDiffSurfRad);
-
-        final AtmosCorrectionResult acResult = new AtmosCorrectionResult();
 
         Tosa tosa = new Tosa();
         tosa.init();
@@ -62,6 +86,19 @@ public class AtmosCorrection {
 
         return acResult;
     }
+
+    static boolean isToaOor(PixelData pixel) {
+        return (pixel.validation & ToaReflectanceValidationOp.RLTOA_OOR_FLAG_MASK) == ToaReflectanceValidationOp.RLTOA_OOR_FLAG_MASK;
+    }
+
+    static boolean isCloudIce(PixelData pixel) {
+        return (pixel.validation & ToaReflectanceValidationOp.CLOUD_ICE_FLAG_MASK) == ToaReflectanceValidationOp.CLOUD_ICE_FLAG_MASK;
+    }
+
+    static boolean isLand(PixelData pixel) {
+        return (pixel.validation & ToaReflectanceValidationOp.LAND_FLAG_MASK) == ToaReflectanceValidationOp.LAND_FLAG_MASK;
+    }
+
 
     private static double correctViewAngle(double teta_view_deg, int pixelX, int centerPixel) {
         final double ang_coef_1 = -0.004793;

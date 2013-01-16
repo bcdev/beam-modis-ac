@@ -28,7 +28,7 @@ import java.util.List;
  * @author Olaf Danne
  */
 @SuppressWarnings({"InstanceVariableMayNotBeInitialized", "MismatchedReadAndWriteOfArray"})
-@OperatorMetadata(alias = "Modis.AtmosphericCorrection",
+@OperatorMetadata(alias = "Modis.AtmosCorrection",
                   version = "1.0-SNAPSHOT",
                   authors = "Roland Doerffer, Olaf Danne",
                   copyright = "(c) 2013 by Brockmann Consult",
@@ -40,10 +40,6 @@ public class ModisAtmosCorrectionOperator extends Operator {
 
     @SourceProduct(label = "MODIS GEO input product", description = "The MODIS GEO input product.")
     private Product modisGeoProduct;
-
-    @SourceProduct(label = "MODIS Flag input product", description = "A MODIS flag input product (optional, e.g. the L2).",
-                   optional = true)
-    private Product modisFlagProduct;
 
     @TargetProduct(description = "The atmospheric corrected output product.")
     private Product targetProduct;
@@ -59,28 +55,44 @@ public class ModisAtmosCorrectionOperator extends Operator {
                description = "Toggles the output of Top of Standard Atmosphere reflectance.")
     private boolean outputTosa;
 
-    @Parameter(defaultValue = "", // todo
-               label = "Land detection expression",
+    @Parameter(label = "Use SRTM Land/Water mask", defaultValue = "true",
+               description = "If set to 'false' a land detection expression as defined below is used.")
+    private boolean useSrtmWaterMask;
+
+    @Parameter(defaultValue = "EV_1KM_RefSB_16 > 0.1", // todo
+               label = "Land detection expression (if no SRTM mask used)",
                description = "The arithmetic expression used for land detection.",
                notEmpty = true, notNull = true)
     private String landExpression;
 
-    @Parameter(defaultValue = "",   // todo
+    @Parameter(defaultValue = "EV_1KM_RefSB_16 > 0.027",   // todo
                label = "Cloud/Ice detection expression",
                description = "The arithmetic expression used for cloud/ice detection.",
                notEmpty = true, notNull = true)
     private String cloudIceExpression;
+
+    @Parameter(defaultValue = "EV_1KM_RefSB_16 > 0.1", label = "'TOA out of range' (TOA_OOR flag) detection expression")
+    private String rlToaOorExpression;
 
     @Parameter(label = "Use climatology map for salinity and temperature", defaultValue = "true",
                description = "By default a climatology map is used. If set to 'false' the specified average values are used " +
                        "for the whole scene.")
     private boolean useSnTMap;
 
-    @Parameter(label = "Average salinity", defaultValue = "35", unit = "PSU", description = "The salinity of the water")
+    @Parameter(label = "Average salinity (if no climatology)", defaultValue = "35", unit = "PSU", description = "The salinity of the water (PSU)")
     private double averageSalinity;
 
-    @Parameter(label = "Average temperature", defaultValue = "15", unit = "°C", description = "The Water temperature")
+    @Parameter(label = "Average temperature (if no climatology)", defaultValue = "15", unit = "°C", description = "The Water temperature (C)")
     private double averageTemperature;
+
+    @Parameter(label = "Altitude", defaultValue = "0", unit = "m", description = "Altitude (m)")
+    private double altitude;
+
+    @Parameter(label = "Pressure", defaultValue = "1013.25", unit = "hPa", description = "Pressure at altitude (hPa)")
+    private double pressure;
+
+    @Parameter(label = "Ozone", defaultValue = "350", unit = "DU", description = "Ozone (DU)")
+    private double ozone;
 
 
     public static final String MODIS_ATMOS_CORRECTION_VERSION = "1.0-SNAPSHOT";
@@ -97,25 +109,34 @@ public class ModisAtmosCorrectionOperator extends Operator {
     private RasterDataNode sataziNode;
 
     private Band[] spectralNodes;
-    private RasterDataNode flagsNode;
 
     private int nadirColumnIndex;
+
+    private Product toaValidationProduct;
+    private Band validationBand;
 
 
     @Override
     public void initialize() throws OperatorException {
         validateModisL1bProduct(modisL1bProduct);
 
-        latNode = modisGeoProduct.getRasterDataNode(Constants.MODIS_LATITUDE_BAND_NAME);
-        lonNode = modisGeoProduct.getRasterDataNode(Constants.MODIS_LONGITUDE_BAND_NAME);
-        solzenNode = modisGeoProduct.getRasterDataNode(Constants.MODIS_SUN_ZENITH_BAND_NAME);
-        solaziNode = modisGeoProduct.getRasterDataNode(Constants.MODIS_SUN_AZIMUTH_BAND_NAME);
-        satzenNode = modisGeoProduct.getRasterDataNode(Constants.MODIS_VIEW_ZENITH_BAND_NAME);
-        sataziNode = modisGeoProduct.getRasterDataNode(Constants.MODIS_VIEW_AZIMUTH_BAND_NAME);
+        latNode = modisGeoProduct.getRasterDataNode(Constants.MODIS_GEO_GEOLOCATION_BAND_NAME_PREFIX+
+                                                            Constants.MODIS_LATITUDE_BAND_NAME);
+        lonNode = modisGeoProduct.getRasterDataNode(Constants.MODIS_GEO_GEOLOCATION_BAND_NAME_PREFIX +
+                                                            Constants.MODIS_LONGITUDE_BAND_NAME);
+        solzenNode = modisGeoProduct.getRasterDataNode(Constants.MODIS_GEO_DATAFIELDS_BAND_NAME_PREFIX +
+                                                               Constants.MODIS_SUN_ZENITH_BAND_NAME);
+        solaziNode = modisGeoProduct.getRasterDataNode(Constants.MODIS_GEO_DATAFIELDS_BAND_NAME_PREFIX +
+                                                               Constants.MODIS_SUN_AZIMUTH_BAND_NAME);
+        satzenNode = modisGeoProduct.getRasterDataNode(Constants.MODIS_GEO_DATAFIELDS_BAND_NAME_PREFIX +
+                                                               Constants.MODIS_VIEW_ZENITH_BAND_NAME);
+        sataziNode = modisGeoProduct.getRasterDataNode(Constants.MODIS_GEO_DATAFIELDS_BAND_NAME_PREFIX +
+                                                               Constants.MODIS_VIEW_AZIMUTH_BAND_NAME);
 
         spectralNodes = new Band[Constants.MODIS_SPECTRAL_BAND_NAMES.length];
         for (int i = 0; i < Constants.MODIS_SPECTRAL_BAND_NAMES.length; i++) {
-            spectralNodes[i] = modisL1bProduct.getBand(Constants.MODIS_SPECTRAL_BAND_NAMES[i]);
+            spectralNodes[i] = modisL1bProduct.getBand(Constants.MODIS_TOA_BAND_NAME_PREFIX +
+                                                               Constants.MODIS_SPECTRAL_BAND_NAMES[i]);
         }
 
         final int rasterHeight = modisL1bProduct.getSceneRasterHeight();
@@ -127,22 +148,31 @@ public class ModisAtmosCorrectionOperator extends Operator {
         ProductUtils.copyMetadata(modisL1bProduct, outputProduct);
         ProductUtils.copyGeoCoding(modisL1bProduct, outputProduct);
 
-        setTargetProduct(outputProduct);
         addTargetBands(outputProduct);
+
+        Band acFlagsBand = outputProduct.addBand(Constants.AC_FLAG_BAND_NAME, ProductData.TYPE_UINT16);
+        final FlagCoding acFlagCoding = createAcFlagCoding();
+        acFlagsBand.setSampleCoding(acFlagCoding);
+        outputProduct.getFlagCodingGroup().add(acFlagCoding);
+        addAcMasks(outputProduct);
+
+        final ToaReflectanceValidationOp validationOp = ToaReflectanceValidationOp.create(modisL1bProduct,
+                                                                                          useSrtmWaterMask,
+                                                                                          landExpression,
+                                                                                          cloudIceExpression,
+                                                                                          rlToaOorExpression);
+        toaValidationProduct = validationOp.getTargetProduct();
+        validationBand = toaValidationProduct.getBandAt(0);
 
         InputStream modisNeuralNetStream = getNeuralNetStream(Constants.MODIS_ATMOSPHERIC_NET_NAME, atmoNetModisFile);
         modisNeuralNetString = readNeuralNetFromStream(modisNeuralNetStream);
 
-        nadirColumnIndex = ModisFlightDirection.findNadirColumnIndex(modisL1bProduct);
+        nadirColumnIndex = ModisFlightDirection.findNadirColumnIndex(modisGeoProduct);
 
         if (useSnTMap) {
             snTProvider = createSnTProvider();
             date = modisL1bProduct.getStartTime().getAsDate();
 
-        }
-        if (modisFlagProduct != null) {
-            flagsNode = modisFlagProduct.getRasterDataNode(Constants.MODIS_FLAG_BAND_NAME);
-            ProductUtils.copyFlagBands(modisFlagProduct, outputProduct, true);
         }
 
         setTargetProduct(outputProduct);
@@ -189,8 +219,7 @@ public class ModisAtmosCorrectionOperator extends Operator {
                         temperature = averageTemperature;
                     }
 
-                    AtmosCorrectionResult acResult = null;
-                    acResult = ac.perform(inputData, temperature, salinity);
+                    AtmosCorrectionResult acResult = ac.perform(inputData, temperature, salinity);
 
                     fillTargetSampleData(targetSampleDataMap, pixelIndex, inputData, acResult);
                 }
@@ -208,7 +237,8 @@ public class ModisAtmosCorrectionOperator extends Operator {
     private PixelData loadModisPixelData(Map<String, ProductData> sourceTileMap, int index) {
         final PixelData pixelData = new PixelData();
         pixelData.nadirColumnIndex = nadirColumnIndex;
-        final ProductData flags = sourceTileMap.get(Constants.MODIS_FLAG_BAND_NAME);
+        pixelData.validation = sourceTileMap.get(validationBand.getName()).getElemIntAt(index);
+        final ProductData flags = sourceTileMap.get(Constants.MODIS_L2_FLAG_BAND_NAME);
         if (flags != null) {
             pixelData.flag = flags.getElemIntAt(index);
         }
@@ -220,11 +250,35 @@ public class ModisAtmosCorrectionOperator extends Operator {
         pixelData.lat = getScaledValue(sourceTileMap, latNode, index);
         pixelData.lon = getScaledValue(sourceTileMap, lonNode, index);
 
-        pixelData.toa_radiance = new double[spectralNodes.length];
-        for (int i = 0; i < spectralNodes.length; i++) {
-            final Band spectralNode = spectralNodes[i];
-            pixelData.toa_radiance[i] = getScaledValue(sourceTileMap, spectralNode, index);
+        // todo: can we get these from aux product??
+        pixelData.ozone = ozone;
+        pixelData.altitude = altitude;
+        pixelData.pressure = pressure;
+
+        // we need the following 9 spectral nodes (toa radiances) as input:
+        // 412nm (RefSB_8)
+        // 443nm (RefSB_9)
+        // 488nm (RefSB_10)
+        // 531nm (RefSB_11)
+        // 547nm (RefSB_12)
+        // 667nm (RefSB_13lo)
+        // 678nm (RefSB_14lo)
+        // 748nm (RefSB_15)
+        // 869nm (RefSB_16)
+        pixelData.toa_radiance = new double[Constants.MODIS_SPECTRAL_BANDNAMES_TO_USE.length];
+        pixelData.solar_flux = new double[Constants.MODIS_SPECTRAL_BANDNAMES_TO_USE.length];
+        int bandsToUseIndex = 0;
+        for (String bandToUse : Constants.MODIS_SPECTRAL_BANDNAMES_TO_USE) {
+            for (int i = 0; i < spectralNodes.length; i++) {
+                final Band spectralNode = spectralNodes[i];
+                if (spectralNode.getName().equals(bandToUse)) {
+                    pixelData.toa_radiance[bandsToUseIndex] = getScaledValue(sourceTileMap, spectralNode, index);
+                    pixelData.solar_flux[bandsToUseIndex] = Constants.SOLAR_FLUXES_TO_USE[bandsToUseIndex];
+                    bandsToUseIndex++;
+                }
+            }
         }
+
         return pixelData;
     }
 
@@ -239,10 +293,8 @@ public class ModisAtmosCorrectionOperator extends Operator {
     private Map<String, ProductData> preLoadModisSources(Rectangle targetRectangle) {
         final Map<String, ProductData> map = new HashMap<String, ProductData>(27);
 
-        if (flagsNode != null) {
-            final Tile l1pFlagTile = getSourceTile(flagsNode, targetRectangle);
-            map.put(l1pFlagTile.getRasterDataNode().getName(), l1pFlagTile.getRawSamples());
-        }
+        final Tile validationTile = getSourceTile(validationBand, targetRectangle);
+        map.put(validationBand.getName(), validationTile.getRawSamples());
 
         final Tile solzenTile = getSourceTile(solzenNode, targetRectangle);
         map.put(solzenTile.getRasterDataNode().getName(), solzenTile.getRawSamples());
@@ -291,9 +343,11 @@ public class ModisAtmosCorrectionOperator extends Operator {
     private void fillTargetSampleData(Map<String, ProductData> targetSampleData, int pixelIndex, PixelData inputData,
                                       AtmosCorrectionResult acResult) {
 
-        fillTargetSample(Constants.MODIS_TOSA_BAND_NAMES, pixelIndex, targetSampleData, acResult.getReflec());
+        final ProductData acFlagTile = targetSampleData.get(Constants.AC_FLAG_BAND_NAME);
+        acFlagTile.setElemIntAt(pixelIndex, acResult.getFlag());
+        fillTargetSample(Constants.MODIS_REFLEC_BAND_NAMES, pixelIndex, targetSampleData, acResult.getReflec());
         if (outputTosa) {
-            fillTargetSample(Constants.MODIS_TOSA_BAND_NAMES, pixelIndex, targetSampleData, acResult.getTosaReflec());
+            fillTargetSample(Constants.MODIS_TOSA_REFLEC_BAND_NAMES, pixelIndex, targetSampleData, acResult.getTosaReflec());
         }
     }
 
@@ -314,14 +368,14 @@ public class ModisAtmosCorrectionOperator extends Operator {
         addSpectralTargetBands(outputProduct, Constants.MODIS_REFLEC_BAND_NAMES, "Water leaving reflectance at {0} nm", "sr^-1");
         groupList.add("reflec");
         if (outputTosa) {
-            addSpectralTargetBands(outputProduct, Constants.MODIS_TOSA_BAND_NAMES, "TOSA Reflectance at {0} nm", "sr^-1");
+            addSpectralTargetBands(outputProduct, Constants.MODIS_TOSA_REFLEC_BAND_NAMES, "TOSA Reflectance at {0} nm", "sr^-1");
             groupList.add("tosa_reflec");
         }
     }
 
     private void addSpectralTargetBands(Product outputProduct, String[] bandNames, String descriptionPattern, String unit) {
         for (int i = 0; i < Constants.MODIS_REFLEC_BAND_NAMES.length; i++) {
-            final float wvl = Float.parseFloat(bandNames[i].substring(bandNames[i].length()-3, bandNames[i].length()));
+            final float wvl = Float.parseFloat(bandNames[i].substring(bandNames[i].length() - 3, bandNames[i].length()));
             final String descr = MessageFormat.format(descriptionPattern, wvl);
             final Band band = outputProduct.addBand(bandNames[i], ProductData.TYPE_FLOAT32);
             band.setDescription(descr);
@@ -332,6 +386,43 @@ public class ModisAtmosCorrectionOperator extends Operator {
 
     private void validateModisL1bProduct(Product modisL1bProduct) {
         // todo
+    }
+
+    public static FlagCoding createAcFlagCoding() {
+        final FlagCoding flagCoding = new FlagCoding(Constants.AC_FLAG_BAND_NAME);
+        flagCoding.setDescription("Atmospheric Correction - Flag Coding");
+
+        addFlagAttribute(flagCoding, "INVALID", "Invalid input pixels (LAND || CLOUD_ICE || TOA_OOR)",
+                         AtmosCorrection.INVALID);
+        addFlagAttribute(flagCoding, "LAND", "Land pixels", AtmosCorrection.LAND);
+        addFlagAttribute(flagCoding, "CLOUD_ICE", "Cloud or ice pixels", AtmosCorrection.CLOUD_ICE);
+        addFlagAttribute(flagCoding, "TOA_OOR", "TOA out of range", AtmosCorrection.TOA_OOR);
+
+        return flagCoding;
+    }
+
+    private static void addFlagAttribute(FlagCoding flagCoding, String name, String description, int value) {
+        MetadataAttribute attribute = new MetadataAttribute(name, ProductData.TYPE_UINT16);
+        attribute.getData().setElemInt(value);
+        attribute.setDescription(description);
+        flagCoding.addAttribute(attribute);
+    }
+
+    public static void addAcMasks(Product product) {
+        final ProductNodeGroup<Mask> maskGroup = product.getMaskGroup();
+        maskGroup.add(createMask(product, "ac_invalid", "'AC invalid' pixels (LAND || CLOUD_ICE || TOA_OOR)",
+                                 "ac_flags.INVALID", Color.RED, 0.5f));
+        maskGroup.add(createMask(product, "ac_land", "Land pixels", "ac_flags.LAND", Color.GREEN, 0.5f));
+        maskGroup.add(createMask(product, "cloud_ice", "Cloud or ice pixels", "ac_flags.CLOUD_ICE",
+                                 Color.cyan, 0.5f));
+        maskGroup.add(createMask(product, "toa_oor", "TOA out of range", "ac_flags.TOA_OOR", Color.MAGENTA, 0.5f));
+    }
+
+    private static Mask createMask(Product product, String name, String description, String expression, Color color,
+                                   float transparency) {
+        return Mask.BandMathsType.create(name, description,
+                                         product.getSceneRasterWidth(), product.getSceneRasterHeight(),
+                                         expression, color, transparency);
     }
 
     private InputStream getNeuralNetStream(String resourceNetName, File neuralNetFile) {

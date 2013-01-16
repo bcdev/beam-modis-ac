@@ -10,15 +10,17 @@ import static org.esa.beam.util.math.MathUtils.ceilInt;
 import static org.esa.beam.util.math.MathUtils.floorInt;
 
 /**
- * todo: add comment
+ * todo: basically taken from Meris - is this applicable for MODIS??
  *
  * @author olafd
  */
 public class ModisFlightDirection {
 
-    public static int findNadirColumnIndex(Product merisProduct) {
-        final int rasterWidth = merisProduct.getSceneRasterWidth();
-        final RasterDataNode grid = merisProduct.getRasterDataNode(Constants.MODIS_VIEW_ZENITH_BAND_NAME);
+    public static int findNadirColumnIndex(Product modisProduct) {
+        final int rasterWidth = modisProduct.getSceneRasterWidth();
+        final String viewZenithBandName = Constants.MODIS_GEO_DATAFIELDS_BAND_NAME_PREFIX +
+                Constants.MODIS_VIEW_ZENITH_BAND_NAME;
+        final RasterDataNode grid = modisProduct.getRasterDataNode(viewZenithBandName);
         final double[] data = new double[rasterWidth];
         final Rectangle centerColumn = new Rectangle(0, 0, data.length, 1);
         grid.getGeophysicalImage().getData(centerColumn).getPixels(0, 0, data.length, 1, data);

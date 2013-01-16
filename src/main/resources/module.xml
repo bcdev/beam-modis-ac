@@ -50,6 +50,9 @@
     <dependency>
         <module>beam-waterradiance-auxdata</module>
     </dependency>
+    <dependency>
+        <module>beam-watermask</module>
+    </dependency>
 
     <categories>Processor,MERIS</categories>
 

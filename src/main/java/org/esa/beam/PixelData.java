@@ -21,6 +21,9 @@ public class PixelData {
     public double satzen;       /* Satellite zenith angle in deg [0,90]		*/
     public double satazi;       /* Satellite azimuth angle as viewed from pixel in deg [0-360I]	*/
     public double ozone;        /* Total ozone concentration in DU		*/
-    public int flag;          /* Flags of the L1p product (optional)    */
+    public double altitude;     /* Altitude in m		*/
+    public double pressure;     /* Pressure in hPa		*/
+    public int flag;            /* Flags (optional) // todo   */
+    public int validation;
 
 }
