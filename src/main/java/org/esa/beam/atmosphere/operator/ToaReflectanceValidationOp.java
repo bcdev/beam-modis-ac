@@ -137,7 +137,6 @@ public class ToaReflectanceValidationOp extends Operator {
     public void computeTile(Band targetBand, Tile targetTile, ProgressMonitor pm) throws OperatorException {
         try {
             pm.beginTask("Computing TOA_Reflectance classification", 4 * targetTile.getHeight());
-            ProductData targetSamples = targetTile.getRawSamples();
 
             final Tile landWaterTile = getSourceTile(landWaterBand, targetTile.getRectangle());
             final Tile cloudIceTile = getSourceTile(cloudIceBand, targetTile.getRectangle());
@@ -198,30 +197,6 @@ public class ToaReflectanceValidationOp extends Operator {
         }
         strategy = new DefaultWatermaskStrategy(classifier);
     }
-
-
-//    private void setIsWater(byte watermask, AbstractPixelProperties pixelProperties) {
-//        boolean isWater;
-//        if (watermask == WatermaskClassifier.INVALID_VALUE) {
-//            // fallback
-//            isWater = pixelProperties.isL1Water();
-//        } else {
-//            isWater = watermask == WatermaskClassifier.WATER_VALUE;
-//        }
-//        pixelProperties.setIsWater(isWater);
-//    }
-//
-//    private void setIsWaterByFraction(byte watermaskFraction, AbstractPixelProperties pixelProperties) {
-//        boolean isWater;
-//        if (watermaskFraction == WatermaskClassifier.INVALID_VALUE) {
-//            // fallback
-//            isWater = pixelProperties.isL1Water();
-//        } else {
-//            isWater = watermaskFraction >= WATERMASK_FRACTION_THRESH;
-//        }
-//        pixelProperties.setIsWater(isWater);
-//    }
-
 
     public static class Spi extends OperatorSpi {
 

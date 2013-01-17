@@ -12,12 +12,6 @@ import static java.lang.Math.exp;
  */
 public class Tosa {
 
-    private static final double[] OZON_ABSORPTION = {
-            8.2e-004, 2.82e-003, 2.076e-002, 3.96e-002, 1.022e-001,
-            1.059e-001, 5.313e-002, 3.552e-002, 1.895e-002, 8.38e-003,
-            7.2e-004, 0.0
-    };
-
     private static final int NUM_BANDS = Constants.MODIS_SPECTRAL_WAVELENGHTS_TO_USE.length;
 
     private double[] trans_oz_down_rest;
@@ -58,6 +52,10 @@ public class Tosa {
         double azi_diff_surf_rad = acos(cos(azi_view_surf_rad - azi_sun_surf_rad));
         double cos_azi_diff_surf = cos(azi_diff_surf_rad);
 
+        if (pixel.pixelX == 800 && pixel.pixelY == 400) {
+            System.out.println("x = " + pixel.pixelX);
+        }
+
         double[] rlTosa = new double[NUM_BANDS];
         double[] sun_toa = pixel.solar_flux;
 
@@ -91,7 +89,7 @@ public class Tosa {
         /* ozon and rayleigh correction layer transmission */
         double ozon_rest_mass = (pixel.ozone / 1000.0); /* conc ozone from MERIS is in DU */
         for (int i = 0; i < trans_oz_down_rest.length; i++) {
-            final double ozonAbsorption = -OZON_ABSORPTION[i];
+            final double ozonAbsorption = -Constants.OZONE_ABSORPTIONS_TO_USE[i];
             final double scaledTauRaylRest = -tau_rayl_rest[i] * 0.5; /* 0.5 because diffuse trans */
 
             trans_oz_down_real[i] = exp(ozonAbsorption * pixel.ozone / 1000.0 / cos_teta_sun_surf);
@@ -127,6 +125,14 @@ public class Tosa {
             lTosa[i] = (lToa[i] + lrcPath[i] * trans_oz_up_real[i]) / trans_oz_up_rest[i] * trans_rayl_up_rest[i];
             /* Calculate Lsat_tosa radiance reflectance as input to NN */
             rlTosa[i] = lTosa[i] / edTosa[i];
+        }
+
+        for (int i = 0; i < lTosa.length; i++) {
+            // convert back from reflectance to radiance...
+            // from http://oceancolor.gsfc.nasa.gov/forum/oceancolor/topic_show.pl?tid=1680:
+            // r = pi * L / (Fo mu0),
+            // where r is reflectance, L is radiance, Fo is solar irradiance and mu0 is cosine of the solar zenith angle
+            rlTosa[i] = rlTosa[i] * Constants.SOLAR_FLUXES_TO_USE[i] * cos_teta_view_surf / Math.PI;
         }
 
         return rlTosa;

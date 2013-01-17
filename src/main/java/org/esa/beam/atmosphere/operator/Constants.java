@@ -43,25 +43,6 @@ public class Constants {
             "RefSB_26"
     };
 
-//    public static final String[] MODIS_SPECTRAL_BAND_NAMES = {
-//            "RefSB1",
-//            "RefSB2",
-//            "RefSB3",
-//            "RefSB4",
-//            "RefSB5",
-//            "RefSB6",
-//            "RefSB7",
-//            "RefSB8",
-//            "RefSB9",
-//            "RefSB10",
-//            "RefSB11",
-//            "RefSB12",
-//            "RefSB13",
-//            "RefSB14",
-//            "RefSB15"
-//    };
-
-
     // The names of the spectral bands to use as input for NN approach:
     public static final String[] MODIS_SPECTRAL_BANDNAMES_TO_USE = {
             MODIS_TOA_BAND_NAME_PREFIX + "RefSB_8",     // 412nm
@@ -74,18 +55,6 @@ public class Constants {
             MODIS_TOA_BAND_NAME_PREFIX + "RefSB_15",    // 748nm
             MODIS_TOA_BAND_NAME_PREFIX + "RefSB_16"     // 869nm
     };
-//    public static final String[] MODIS_SPECTRAL_BANDNAMES_TO_USE = {
-//            "RefSB1",     // 412nm
-//            "RefSB2",     // 443nm
-//            "RefSB3",     // 488nm
-//            "RefSB4",     // 531nm
-//            "RefSB5",     // 547nm
-//            "RefSB6",     // 667nm
-//            "RefSB8",     // 678nm
-//            "RefSB10",    // 748nm
-//            "RefSB11"     // 869nm
-//    };
-
 
     // The wavelengths of the spectral bands to use as input for NN approach:
     public static final double[] MODIS_SPECTRAL_WAVELENGHTS_TO_USE = {
@@ -100,18 +69,33 @@ public class Constants {
             869.0
     };
 
-    // Solar fluxes in mW/cm^2/um, from http://oceancolor.gsfc.nasa.gov/DOCS/RSR/f0.txt
+    // Solar fluxes, F0 Thuillier,
+    // from http://oceancolor.gsfc.nasa.gov/DOCS/RSR_tables.html, modified from in mW/cm^2/um to W/m2
     public static final double[] SOLAR_FLUXES_TO_USE = {
-            167.280,     // 412nm
-            195.407,     // 443nm
-            191.606,     // 488nm
-            191.418,     // 531nm
-            187.408,     // 547nm
-            151.773,     // 667nm
-            148.193,     // 678nm
-            128.825,     // 748nm
-            95.4836      // 869nm
+            1729.12,     // 412nm
+            1876.22,     // 443nm
+            1949.33,     // 488nm
+            1857.47,     // 531nm
+            1865.39,     // 547nm
+            1522.55,     // 667nm
+            1480.52,     // 678nm
+            1280.65,     // 748nm
+            958.24      // 869nm
     };
+
+    // Ozone absorptions, from http://oceancolor.gsfc.nasa.gov/DOCS/RSR_tables.html,
+    public static final double[] OZONE_ABSORPTIONS_TO_USE = {
+            1.987E-03,     // 412nm
+            3.189E-03,     // 443nm
+            2.032E-02,     // 488nm
+            6.838E-02,     // 531nm
+            8.622E-02,     // 547nm
+            7.382E-02,     // 667nm
+            3.787E-02,     // 678nm
+            1.235E-02,     // 748nm
+            1.936E-03      // 869nm
+    };
+
 
     // Output reflectance band names
     public static final String[] MODIS_REFLEC_BAND_NAMES = {

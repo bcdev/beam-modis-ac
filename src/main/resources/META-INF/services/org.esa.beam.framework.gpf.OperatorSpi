@@ -1,1 +1,2 @@
-org.esa.beam.atmosphere.operator.ModisAtmosCorrectionOperator$Spi
+org.esa.beam.atmosphere.operator.ModisAtmosCorrectionOp$Spi
+org.esa.beam.atmosphere.operator.ToaReflectanceValidationOp$Spi

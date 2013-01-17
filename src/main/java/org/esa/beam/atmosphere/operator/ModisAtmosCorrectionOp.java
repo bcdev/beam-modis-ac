@@ -19,8 +19,9 @@ import org.esa.beam.waterradiance.AuxdataProviderFactory;
 import java.awt.*;
 import java.io.*;
 import java.text.MessageFormat;
-import java.util.*;
-import java.util.List;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Main operator for the MODIS atmospheric correction.
@@ -33,7 +34,7 @@ import java.util.List;
                   authors = "Roland Doerffer, Olaf Danne",
                   copyright = "(c) 2013 by Brockmann Consult",
                   description = "MODIS atmospheric correction using a neural net.")
-public class ModisAtmosCorrectionOperator extends Operator {
+public class ModisAtmosCorrectionOp extends Operator {
 
     @SourceProduct(label = "MODIS L1b input product", description = "The MODIS L1b input product.")
     private Product modisL1bProduct;
@@ -112,7 +113,6 @@ public class ModisAtmosCorrectionOperator extends Operator {
 
     private int nadirColumnIndex;
 
-    private Product toaValidationProduct;
     private Band validationBand;
 
 
@@ -161,7 +161,7 @@ public class ModisAtmosCorrectionOperator extends Operator {
                                                                                           landExpression,
                                                                                           cloudIceExpression,
                                                                                           rlToaOorExpression);
-        toaValidationProduct = validationOp.getTargetProduct();
+        Product toaValidationProduct = validationOp.getTargetProduct();
         validationBand = toaValidationProduct.getBandAt(0);
 
         InputStream modisNeuralNetStream = getNeuralNetStream(Constants.MODIS_ATMOSPHERIC_NET_NAME, atmoNetModisFile);
@@ -221,7 +221,7 @@ public class ModisAtmosCorrectionOperator extends Operator {
 
                     AtmosCorrectionResult acResult = ac.perform(inputData, temperature, salinity);
 
-                    fillTargetSampleData(targetSampleDataMap, pixelIndex, inputData, acResult);
+                    fillTargetSampleData(targetSampleDataMap, pixelIndex, acResult);
                 }
                 pm.worked(1);
             }
@@ -269,8 +269,7 @@ public class ModisAtmosCorrectionOperator extends Operator {
         pixelData.solar_flux = new double[Constants.MODIS_SPECTRAL_BANDNAMES_TO_USE.length];
         int bandsToUseIndex = 0;
         for (String bandToUse : Constants.MODIS_SPECTRAL_BANDNAMES_TO_USE) {
-            for (int i = 0; i < spectralNodes.length; i++) {
-                final Band spectralNode = spectralNodes[i];
+            for (final Band spectralNode : spectralNodes) {
                 if (spectralNode.getName().equals(bandToUse)) {
                     pixelData.toa_radiance[bandsToUseIndex] = getScaledValue(sourceTileMap, spectralNode, index);
                     pixelData.solar_flux[bandsToUseIndex] = Constants.SOLAR_FLUXES_TO_USE[bandsToUseIndex];
@@ -340,7 +339,7 @@ public class ModisAtmosCorrectionOperator extends Operator {
 
     }
 
-    private void fillTargetSampleData(Map<String, ProductData> targetSampleData, int pixelIndex, PixelData inputData,
+    private void fillTargetSampleData(Map<String, ProductData> targetSampleData, int pixelIndex,
                                       AtmosCorrectionResult acResult) {
 
         final ProductData acFlagTile = targetSampleData.get(Constants.AC_FLAG_BAND_NAME);
@@ -364,20 +363,29 @@ public class ModisAtmosCorrectionOperator extends Operator {
     }
 
     private void addTargetBands(Product outputProduct) {
-        final List<String> groupList = new ArrayList<String>();
         addSpectralTargetBands(outputProduct, Constants.MODIS_REFLEC_BAND_NAMES, "Water leaving reflectance at {0} nm", "sr^-1");
-        groupList.add("reflec");
         if (outputTosa) {
             addSpectralTargetBands(outputProduct, Constants.MODIS_TOSA_REFLEC_BAND_NAMES, "TOSA Reflectance at {0} nm", "sr^-1");
-            groupList.add("tosa_reflec");
         }
+
+        final String[] splitSataziName = sataziNode.getName().split("/");
+        ProductUtils.copyBand(sataziNode.getName(), modisGeoProduct, splitSataziName[2], outputProduct, true);
+        final String[] splitSolaziName = solaziNode.getName().split("/");
+        ProductUtils.copyBand(solaziNode.getName(), modisGeoProduct, splitSolaziName[2], outputProduct, true);
+        final String[] splitSatzenName = satzenNode.getName().split("/");
+        ProductUtils.copyBand(satzenNode.getName(), modisGeoProduct, splitSatzenName[2], outputProduct, true);
+        final String[] splitSolzenName = solzenNode.getName().split("/");
+        ProductUtils.copyBand(solzenNode.getName(), modisGeoProduct, splitSolzenName[2], outputProduct, true);
+
     }
 
     private void addSpectralTargetBands(Product outputProduct, String[] bandNames, String descriptionPattern, String unit) {
         for (int i = 0; i < Constants.MODIS_REFLEC_BAND_NAMES.length; i++) {
-            final float wvl = Float.parseFloat(bandNames[i].substring(bandNames[i].length() - 3, bandNames[i].length()));
+//            final float wvl = Float.parseFloat(bandNames[i].substring(bandNames[i].length() - 3, bandNames[i].length()));
+            final double wvl = Constants.MODIS_SPECTRAL_WAVELENGHTS_TO_USE[i];
             final String descr = MessageFormat.format(descriptionPattern, wvl);
             final Band band = outputProduct.addBand(bandNames[i], ProductData.TYPE_FLOAT32);
+            band.setSpectralWavelength((float) wvl);
             band.setDescription(descr);
             band.setUnit(unit);
             band.setValidPixelExpression("");   // todo
@@ -472,7 +480,7 @@ public class ModisAtmosCorrectionOperator extends Operator {
     public static class Spi extends OperatorSpi {
 
         public Spi() {
-            super(ModisAtmosCorrectionOperator.class);
+            super(ModisAtmosCorrectionOp.class);
         }
     }
 }
