@@ -52,14 +52,18 @@ public class Tosa {
         double azi_diff_surf_rad = acos(cos(azi_view_surf_rad - azi_sun_surf_rad));
         double cos_azi_diff_surf = cos(azi_diff_surf_rad);
 
-        if (pixel.pixelX == 800 && pixel.pixelY == 400) {
-            System.out.println("x = " + pixel.pixelX);
-        }
-
         double[] rlTosa = new double[NUM_BANDS];
         double[] sun_toa = pixel.solar_flux;
 
         double[] lToa = pixel.toa_radiance;
+
+        for (int i = 0; i < lToa.length; i++) {
+            // convert back from reflectance to radiance...
+            // from http://oceancolor.gsfc.nasa.gov/forum/oceancolor/topic_show.pl?tid=1680:
+            // r = pi * L / (Fo mu0),
+            // where r is reflectance, L is radiance, Fo is solar irradiance and mu0 is cosine of the solar zenith angle
+            lToa[i] = lToa[i] * Constants.SOLAR_FLUXES_TO_USE[i] * cos_teta_view_surf / Math.PI;
+        }
 
         /* calculate relative airmass rayleigh correction for correction layer*/
         if (pixel.altitude < 1.0f) {
@@ -127,12 +131,8 @@ public class Tosa {
             rlTosa[i] = lTosa[i] / edTosa[i];
         }
 
-        for (int i = 0; i < lTosa.length; i++) {
-            // convert back from reflectance to radiance...
-            // from http://oceancolor.gsfc.nasa.gov/forum/oceancolor/topic_show.pl?tid=1680:
-            // r = pi * L / (Fo mu0),
-            // where r is reflectance, L is radiance, Fo is solar irradiance and mu0 is cosine of the solar zenith angle
-            rlTosa[i] = rlTosa[i] * Constants.SOLAR_FLUXES_TO_USE[i] * cos_teta_view_surf / Math.PI;
+        if (pixel.pixelX == 856 && pixel.pixelY == 233) {
+            System.out.println("x = " + pixel.pixelX);
         }
 
         return rlTosa;
