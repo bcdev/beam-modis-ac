@@ -1,6 +1,7 @@
 package org.esa.beam.atmosphere.operator;
 
 import com.bc.ceres.core.ProgressMonitor;
+import com.bc.ceres.glevel.MultiLevelImage;
 import org.esa.beam.PixelData;
 import org.esa.beam.framework.datamodel.*;
 import org.esa.beam.framework.gpf.Operator;
@@ -16,7 +17,14 @@ import org.esa.beam.util.ProductUtils;
 import org.esa.beam.waterradiance.AuxdataProvider;
 import org.esa.beam.waterradiance.AuxdataProviderFactory;
 
+import javax.media.jai.InterpolationNearest;
+import javax.media.jai.JAI;
+import javax.media.jai.PlanarImage;
+import javax.media.jai.RenderedOp;
+import javax.media.jai.operator.TransposeDescriptor;
+import javax.media.jai.operator.TransposeType;
 import java.awt.*;
+import java.awt.image.renderable.ParameterBlock;
 import java.io.*;
 import java.text.MessageFormat;
 import java.util.Date;
@@ -115,6 +123,13 @@ public class ModisAtmosCorrectionOp extends Operator {
 
     private Band validationBand;
 
+    private RenderedOp flippedLatImage;
+    private RenderedOp flippedLonImage;
+    private RenderedOp flippedSolzenImage;
+    private RenderedOp flippedSataziImage;
+    private RenderedOp flippedSolaziImage;
+    private RenderedOp flippedSatzenImage;
+
 
     @Override
     public void initialize() throws OperatorException {
@@ -132,6 +147,20 @@ public class ModisAtmosCorrectionOp extends Operator {
                                                                Constants.MODIS_VIEW_ZENITH_BAND_NAME);
         sataziNode = modisGeoProduct.getRasterDataNode(Constants.MODIS_GEO_DATAFIELDS_BAND_NAME_PREFIX +
                                                                Constants.MODIS_VIEW_AZIMUTH_BAND_NAME);
+
+        // flip the GEO product images, as discussed on 20130130 with CB, RD, DO:
+        flippedLatImage = flipImage(modisGeoProduct.getBand(latNode.getName()));
+//        latNode.setSourceImage(flippedLatImage);
+        flippedLonImage = flipImage(modisGeoProduct.getBand(lonNode.getName()));
+//        lonNode.setSourceImage(flippedLonImage);
+        flippedSolzenImage = flipImage(modisGeoProduct.getBand(solzenNode.getName()));
+//        solzenNode.setSourceImage(flippedSolzenImage);
+        flippedSolaziImage = flipImage(modisGeoProduct.getBand(solaziNode.getName()));
+//        solaziNode.setSourceImage(flippedSolzenImage);
+        flippedSatzenImage = flipImage(modisGeoProduct.getBand(satzenNode.getName()));
+//        satzenNode.setSourceImage(flippedSolzenImage);
+        flippedSataziImage = flipImage(modisGeoProduct.getBand(sataziNode.getName()));
+//        sataziNode.setSourceImage(flippedSolzenImage);
 
         spectralNodes = new Band[Constants.MODIS_SPECTRAL_BAND_NAMES.length];
         for (int i = 0; i < Constants.MODIS_SPECTRAL_BAND_NAMES.length; i++) {
@@ -232,6 +261,11 @@ public class ModisAtmosCorrectionOp extends Operator {
             pm.done();
         }
 
+    }
+
+    private RenderedOp flipImage(Band sourceBand) {
+        final RenderedOp verticalFlippedImage = TransposeDescriptor.create(sourceBand.getSourceImage(), TransposeDescriptor.FLIP_VERTICAL, null);
+        return TransposeDescriptor.create(verticalFlippedImage, TransposeDescriptor.FLIP_HORIZONTAL, null);
     }
 
     private PixelData loadModisPixelData(Map<String, ProductData> sourceTileMap, int index) {
@@ -377,6 +411,11 @@ public class ModisAtmosCorrectionOp extends Operator {
         final String[] splitSolzenName = solzenNode.getName().split("/");
         ProductUtils.copyBand(solzenNode.getName(), modisGeoProduct, splitSolzenName[2], outputProduct, true);
 
+        // set the flipped images, as discussed on 20130130 with CB, RD, DO:
+//        outputProduct.getBand(splitSataziName[2]).setSourceImage(flippedSataziImage);
+//        outputProduct.getBand(splitSolaziName[2]).setSourceImage(flippedSolaziImage);
+//        outputProduct.getBand(splitSatzenName[2]).setSourceImage(flippedSatzenImage);
+//        outputProduct.getBand(splitSolzenName[2]).setSourceImage(flippedSolzenImage);
     }
 
     private void addSpectralTargetBands(Product outputProduct, String[] bandNames, String descriptionPattern, String unit) {

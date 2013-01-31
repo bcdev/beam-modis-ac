@@ -110,7 +110,9 @@ public class AtmosCorrection {
     private static double getAzimuthDifference(PixelData pixel) {
         double aziViewSurfRad = Math.toRadians(pixel.satazi);
         double aziSunSurfRad = Math.toRadians(pixel.solazi);
-        double aziDiffSurfRad = Math.acos(Math.cos(aziViewSurfRad - aziSunSurfRad));
+//        double aziDiffSurfRad = Math.acos(Math.cos(aziViewSurfRad - aziSunSurfRad));
+        // changed as discussed on 20130130 with CB, RD, DO:
+        double aziDiffSurfRad = Math.acos(Math.cos(aziViewSurfRad - Math.PI - aziSunSurfRad));
         return Math.toDegrees(aziDiffSurfRad);
     }
 
